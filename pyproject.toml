@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "tiktok-py"
+version = "0.1.0"
+description = ""
+authors = ["MehdiRtal <mehdirtal7@pm.me>"]
+packages = [{include = "tiktok_py"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+playwright = "^1.40.0"
+fake-useragent = "^1.4.0"
+playwright-stealth = "^1.0.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
