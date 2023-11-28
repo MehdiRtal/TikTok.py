@@ -27,7 +27,6 @@ class TikTok:
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.page = self.context.new_page()
         stealth_sync(self.page)
-        self.page.goto("https://www.tiktok.com/")
         self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.device_id = str(random.randint(10**18, 10**19 - 1))
@@ -80,6 +79,7 @@ class TikTok:
     def login(self, session: dict = None):
         if session:
             self.page.context.add_cookies(session)
+        self.page.goto("https://www.tiktok.com/")
 
     def get_user_info(self, username: str):
         params = {
