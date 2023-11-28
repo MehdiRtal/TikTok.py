@@ -7,15 +7,27 @@ from playwright_stealth import stealth_sync
 
 
 class TikTok:
-    def __init__(self):
+    def __init__(self, headless: bool = False, proxy: str = None):
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(headless=True)
+        tmp_proxy = None
+        if proxy:
+            tmp_proxy = {
+                "server": f"http://{proxy}",
+            }
+            if "@" in proxy:
+                tmp_proxy["server"] = f"http://{proxy.split('@')[1]}"
+                tmp_proxy["username"] = proxy.split("@")[0].split(":")[0]
+                tmp_proxy["password"] = proxy.split("@")[0].split(":")[1]
+        self.browser = self.playwright.chromium.launch(
+            headless=headless,
+            proxy=tmp_proxy
+        )
         ua = UserAgent()
         self.user_agent = ua.chrome
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.page = self.context.new_page()
         stealth_sync(self.page)
-        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
+        self.page.goto("https://www.tiktok.com/")
         self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.device_id = str(random.randint(10**18, 10**19 - 1))
@@ -23,7 +35,7 @@ class TikTok:
         self.screen_height = str(random.randint(600, 1080))
         self.screen_width = str(random.randint(800, 1920))
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
-        self.verify_fp = "verify_llje3d4k_v7BuITiM_H9ed_4MJ9_8dAX_zarRxLCWkrW7"
+        self.verify_fp = ""
 
     def _generate_params(self, params: dict):
         return "?" + "&".join([f"{k}={urllib.parse.quote(v)}" for k, v in params.items()])
@@ -65,6 +77,10 @@ class TikTok:
         )
         return r
 
+    def login(self, session: dict = None):
+        if session:
+            self.page.context.add_cookies(session)
+
     def get_user_info(self, username: str):
         params = {
             "aid": "1988",
@@ -99,54 +115,6 @@ class TikTok:
         }
         r = self._fetch("GET", "https://www.tiktok.com/api/user/detail/", params=params)
         print(r)
-
-    def login(self):
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
-        body = f"mix_mode=1&username=647f77647f774&password=647f7764f7764777661&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
-        params = {
-            "multi_login": "1",
-            "did": self.device_id,
-            "aid": "1459",
-            "account_sdk_source": "web",
-            "sdk_version": "2.0.3-tiktok",
-            "language": self.language,
-            "verifyFp": self.verify_fp,
-            "target_aid": "",
-            "shark_extract": json.dumps({
-                    "aid": 1459,
-                    "app_name": "Tik_Tok_Login",
-                    "channel": "tiktok_web",
-                    "device_platform": "web_pc",
-                    "device_id": self.device_id,
-                    "region": "MA",
-                    "priority_region": "",
-                    "os": self.platform,
-                    "referer": "",
-                    "cookie_enabled": True,
-                    "screen_width": self.screen_width,
-                    "screen_height": self.screen_height,
-                    "browser_language": self.language,
-                    "browser_platform": self.platform,
-                    "browser_name": "Mozilla",
-                    "browser_version": self.user_agent,
-                    "browser_online": True,
-                    "verifyFp": self.verify_fp,
-                    "app_language": self.language,
-                    "webcast_language": self.language,
-                    "tz_name": self.timezone,
-                    "is_page_visible": True,
-                    "focus_state": True,
-                    "is_fullscreen": False,
-                    "history_len": self.history_len,
-                    "battery_info": None
-                }
-            )
-        }
-        r = self._xhr("https://www-useast1a.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
-        data = json.loads(r)
-        print(data)
 
     def follow(self, username: str):
         params = {
@@ -185,14 +153,22 @@ class TikTok:
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params)
         print(r)
 
+    def call(self, number: str, country_code: str):
+        headers = {
+            "Content-Type": "application/json"
+        }
+        data = json.dumps({
+            "codeChannel": 1,
+            "target": number,
+            "country": country_code,
+            "isCipher": False
+        })
+        r = self._xhr("https://www.tiktok.com/api/ba/business/suite/verification/contact/send/?lang=ar&language=ar", headers=headers, data=data)
+        print(r)
+
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         self.browser.close()
         self.playwright.stop()
-
-
-if __name__ == '__main__':
-    with TikTok() as tt:
-        tt.login()
