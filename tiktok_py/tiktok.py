@@ -4,7 +4,8 @@ import json
 from fake_useragent import UserAgent
 import random
 from playwright_stealth import stealth_sync
-from omocaptcha import OMOCaptcha
+
+from omocaptcha_py import OMOCaptcha
 
 
 class TikTok:
@@ -36,7 +37,7 @@ class TikTok:
         self.screen_height = str(random.randint(600, 1080))
         self.screen_width = str(random.randint(800, 1920))
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
-        self.verify_fp = "verify_lp8tr78m_QbiwfvPC_boiZ_4TvS_9jak_6cc3vDkimkxz"
+        self.verify_fp = None
 
     def _generate_params(self, params: dict):
         return "?" + "&".join([f"{k}={urllib.parse.quote(v)}" for k, v in params.items()])
@@ -77,10 +78,69 @@ class TikTok:
         )
         return r
 
-    def login(self, session: dict = None):
+    def login(self, username: str = None, password: str = None, session: dict = None):
+        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
         if session:
-            self.page.context.add_cookies(session)
-        self.page.goto("https://www.tiktok.com/")
+            self.context.add_cookies(session)
+            for cookies in self.context.cookies():
+                if cookies["name"] == "s_v_web_id":
+                    self.verify_fp = cookies["value"]
+        elif username and password:
+            self.context.add_cookies([{"name": "s_v_web_id", "value": "verify_lpk89oqr_qU1by6Lt_AC6b_460F_A0vc_2vvSOYC4H1Zz", "domain": ".tiktok.com", "path": "/"}])
+            self.verify_fp = "verify_lpk89oqr_qU1by6Lt_AC6b_460F_A0vc_2vvSOYC4H1Zz"
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            body = f"mix_mode=1&username={username}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
+            params = {
+                "multi_login": "1",
+                "did": self.device_id,
+                "aid": "1459",
+                "account_sdk_source": "web",
+                "sdk_version": "2.0.3-tiktok",
+                "language": self.language,
+                "verifyFp": self.verify_fp,
+                "target_aid": "",
+                "fp": self.verify_fp,
+                "shark_extra": json.dumps({
+                        "aid": 1459,
+                        "app_name": "Tik_Tok_Login",
+                        "channel": "tiktok_web",
+                        "device_platform": "web_pc",
+                        "device_id": self.device_id,
+                        "region": "MA",
+                        "priority_region": "",
+                        "os": self.platform,
+                        "referer": "",
+                        "cookie_enabled": True,
+                        "screen_width": self.screen_width,
+                        "screen_height": self.screen_height,
+                        "browser_language": self.language,
+                        "browser_platform": self.platform,
+                        "browser_name": "Mozilla",
+                        "browser_version": self.user_agent,
+                        "browser_online": True,
+                        "verifyFp": self.verify_fp,
+                        "app_language": self.language,
+                        "webcast_language": self.language,
+                        "tz_name": self.timezone,
+                        "is_page_visible": True,
+                        "focus_state": True,
+                        "is_fullscreen": False,
+                        "history_len": self.history_len,
+                        "battery_info": None
+                    }
+                )
+            }
+            for _ in range(2):
+                r = self._xhr("POST", "https://www-useast1a.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
+                if "verify_center_decision_conf" in r:
+                    data = json.loads(r)["data"]
+                    captcha = json.loads(data["verify_center_decision_conf"])
+                    self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"])
+                else:
+                    break
+            print(r)
 
     def get_user_info(self, username: str):
         params = {
@@ -158,23 +218,27 @@ class TikTok:
         headers = {
             "Content-Type": "application/json"
         }
-        data = json.dumps({
+        body = json.dumps({
             "codeChannel": 1,
             "target": number,
             "country": country_code,
             "isCipher": False
         })
-        while True:
-            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/?lang=ar&language=ar", headers=headers, data=data)
+        params = {
+                "lang": self.language,
+                "language": self.language
+            }
+        for _ in range(2):
+            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
             if "codeDecisionConf" in r:
-                captcha = json.loads(json.loads(r)["codeDecisionConf"])
+                data = json.loads(r)
+                captcha = json.loads(data["codeDecisionConf"])
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"])
             else:
                 break
         print(r)
 
     def solve_captcha(self, detail: str, type: str, subtype: str):
-        detail = "36mMOyT2xRjCrvYMG-YU4Hrqg*q7nhQlChaZkRvGLB9cUC2YwY-QVnY07YvNTWHHRVVI0zadHGJT1MGpQa-zS4DQPQ5CKIIICnlwhdpjyncQRuNaKd862g*F-QjZ4hVmQIZ6yN*b-JYrKmFe1gn*1h8C1x0Ex0C7-TT8XdvgK7yWU3GoQ76KdCqf-BZdCrKDhRvWuZGOVaikxrFN0nhBWyJO4V*FV20ukYwNtanvMuB3FsriN5N8B9NDC29bfHs."
         params = {
             "lang": self.language,
             "app_name": "",
@@ -187,7 +251,7 @@ class TikTok:
             "aid": "1988",
             "os_type": "2",
             "mode": "",
-            "tmp": "1701254862883",
+            "tmp": "1701289845878",
             "platform": self.platform,
             "webdriver": "false",
             "fp": self.verify_fp,
@@ -204,43 +268,42 @@ class TikTok:
         id = data["id"]
         challenge_code = str(data["challenge_code"])
         mode = data["mode"]
-        image_url = data["question"]["url1"]
 
         if subtype == "3d":
             omocaptcha = OMOCaptcha("vBGRE4v2HuzbHytf9NZ6fHkuZirmcxmJXP00HkK9HUUVaf6LQmRNdeXJ9u0Pt8PqG9o24kIQ4Ecopnix")
-            x1, y1, x2, y2 = omocaptcha.solve_tiktok_2objects(image_url=image_url, width=340, height=212)
+            image_url = data["question"]["url1"]
+            x1, y1, x2, y2 = omocaptcha.solve_tiktok_2objects(image_url=image_url)
+            answer = [
+                {
+                    "x": x1,
+                    "y": y1
+                },
+                {
+                    "x": x2,
+                    "y": y2
+                }
+            ]
+        elif subtype == "whirl":
+            omocaptcha = OMOCaptcha("vBGRE4v2HuzbHytf9NZ6fHkuZirmcxmJXP00HkK9HUUVaf6LQmRNdeXJ9u0Pt8PqG9o24kIQ4Ecopnix")
+            outer_image_url = data["question"]["url1"]
+            inner_image_url = data["question"]["url2"]
+            x = omocaptcha.solve_tiktok_rotation(outer_image_url=outer_image_url, inner_image_url=inner_image_url)
+            answer = [{"x": i, "y": 0, "relative_time": i + 50} for i in range(x+1)]
 
         headers = {
             "Content-Type": "application/json"
         }
-        body = {
+        body = json.dumps({
             "modified_img_width": 340,
             "id": id,
             "mode": mode,
-            "reply": [
-                {
-                    "x": x1,
-                    "y": y1
-                },
-                {
-                    "x": x2,
-                    "y": y2
-                }
-            ],
-            "reply2": [
-                {
-                    "x": x1,
-                    "y": y1
-                },
-                {
-                    "x": x2,
-                    "y": y2
-                }
-            ],
-        }
+            "reply": answer,
+            "reply2": answer,
+            "drag_width": 271
+        })
         params["mode"] = mode
         params["challenge_code"] = challenge_code
-        r = self._xhr("POST", "https://verification.us.tiktok.com/captcha/verify", params=params, headers=headers, data=json.dumps(body))
+        r = self._xhr("POST", "https://verification.us.tiktok.com/captcha/verify", params=params, headers=headers, data=body)
         print(r)
 
     def __enter__(self):
@@ -249,12 +312,3 @@ class TikTok:
     def __exit__(self, *args):
         self.browser.close()
         self.playwright.stop()
-
-
-if __name__ == "__main__":
-    with TikTok(headless=False) as bot:
-        c = "tt-target-idc-sign=gPMhzDWqHwTsUwKVRu254ElcU0gtMhhuKTn6be8CP8OlRbAhs4pvTOcB40Brzxl9eg8K6ycIeS4UA0u3lLusfx4BMvX2Gs-F-ggDUm-2ld_6Cl3euzl3WSpyU0ilX1B5csdxuOd-xxZTwQgpanoJsUL--hV8m93csz31a9uDSCtnIi-8Pt9ENl74ty9Zpnf0TVCT1d_mt7owtEST0cT0AdetHAiqZj-UbWo1HXOmv0KJNCWoaJvKF2zg-PqNrgxE0xqh1rzU_Pjo9c5cgKzi-Pn20xPuoq3jefwoYboLb0NP9ftsHijRs6qoy6GmLIY3TfxOBMlPjKyKMKP9q4hKrgGmQcA-8MaW04eLHzZMyNs-3wpgDvCta69kkdS5HtFcMRh8bD2fhuVfQuoJYTxuJzHuj81BY0DQTgpLb8-X_lBHS0DKw0p5lWbbm18_c9Ksu2pcU9xUwpx3kR_vnfWGLmPG54FhRhJ9h55xtoY15tGzDVTx_O4u81MHWGJTCI1x;csrf_session_id=b21434d1aed8bd3db7b949c64aec0cba;msToken=3VnQc1UvxlL7pahD9omQr-Fnb9JvWa_fmsGbIQ4BuEQVMLfNFCBKU4JMnvPa9OMCnEDAL9wiYGbWcYnfDuyQCljBlJLn3EkGoNDqTF6MTqVSiJJ8yC5HHWeLEgdJ301cD6Vu6FM6xu-GC0Y=;gd_random_756329=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDE3MDYyNzYsImlhdCI6MTcwMTEwMTQ3NiwibWF0Y2giOmZhbHNlLCJuYmYiOjE3MDExMDE0NzYsInBhdGgiOiIvYnVzaW5lc3Mtc3VpdGUiLCJwZXJjZW50IjowLjEyNTk2NTU5Nzc3MjMzNzl9.e8t119XWMht0RAR42dXOVb58AEQLKHiuig88u8pqSjk;sid_guard=78034e564d3a73c506ee3ff11f37166a%7C1701252902%7C15552000%7CMon%2C+27-May-2024+10%3A15%3A02+GMT;ttwid=1%7CXDb88SaCLj_N4zF_qpbCcB5l6idnfrHr4M36B3ZFOnI%7C1701252597%7Cac5709d05a4bd536c1fd4584516303e22f2846c184c8c748baa9ae811be64ffe;store-country-code-src=uid;perf_feed_cache={%22expireTimestamp%22:1701424800000%2C%22itemIds%22:[%227299161189072882962%22%2C%227294698096750038278%22%2C%227282872981179665682%22]};cookie-consent={%22ga%22:true%2C%22af%22:true%2C%22fbp%22:true%2C%22lip%22:true%2C%22bing%22:true%2C%22ttads%22:true%2C%22reddit%22:true%2C%22hubspot%22:true%2C%22version%22:%22v10%22};uid_tt=be4722bd49666483abe02fd3fedb96e7a3471708ec0db18529883efbc92bc11a;passport_csrf_token_default=e57ebea098d4ad5a28d15da3b8638a73;msToken=tES4FkOz3kBz597T4QnRNsEz935L02fS0GnXgwIFqxXUylMPWpH2n8YqiT8owNqKn6zRH5d0R6UxLZ_9rAT10CO53h_rmXBYQU1Trq9hwCUT-0F-hMNMgoOFPEFuaDxbT4t11t0Gnuw1Uq0=;s_v_web_id=verify_lp8tr78m_QbiwfvPC_boiZ_4TvS_9jak_6cc3vDkimkxz;store-idc=useast5;ssid_ucp_v1=1.0.0-KDc1N2UzZDIzYWM1MTViY2YxN2Y4NDVlNmM1MjY3NTYzNTIxMTAxYzIKIAiuiPuK1p2CjWUQpp6cqwYYswsgDDDYkuioBjgBQOoHEAQaB3VzZWFzdDUiIDc4MDM0ZTU2NGQzYTczYzUwNmVlM2ZmMTFmMzcxNjZh;tiktok_webapp_theme=light;__tea_cache_tokens_1988={%22user_unique_id%22:%227304024311227008545%22%2C%22timestamp%22:1701252748171%2C%22_type_%22:%22default%22};_ttp=2XoQKxlaBhIiD1WViyCsg3h5Kwv;cmpl_token=AgQQAPNSF-RO0rUk5krpbB0X_zyCWgof_6O3YNM-Uw;csrfToken=ScRlNFZR-sbfBVAtblEORoKtKmv9HvSlJBQI;gd_random_756330=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDE3MDMwMjEsImlhdCI6MTcwMTA5ODIyMSwibWF0Y2giOmZhbHNlLCJuYmYiOjE3MDEwOTgyMjEsInBhdGgiOiIvYnVzaW5lc3Mtc3VpdGUiLCJwZXJjZW50IjowLjY3ODcyMjU4ODY3MjQzMzV9.OTQ0opjHefARgywM9VbmhHYqNlHDOPZU-2GaKLarJsw;gd_worker_v2_random_3285=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MDE4NTc3MDksImlhdCI6MTcwMTI1MjkwOSwibWF0Y2giOmZhbHNlLCJuYmYiOjE3MDEyNTI5MDksInBhdGgiOiIvYnVzaW5lc3Mtc3VpdGUiLCJwZXJjZW50IjowLjU1NzYxMTM5NDM2OTg1NTd9.gA6WbLr8LJRoRDfWLQ1gxF3igv_Cl9y5f0f3XHSTIgA;multi_sids=7285145162859070510%3A78034e564d3a73c506ee3ff11f37166a;odin_tt=e255ed99c87411f8dde0dbd5763b1be07a30cb6eb87441c6c28b4f850b1969d5c5b3e403eb7083d1a21d46929cab014c90dcb4f22b12be3e29c8a7012895867b;passport_csrf_token=e57ebea098d4ad5a28d15da3b8638a73;passport_fe_beating_status=false;sessionid=78034e564d3a73c506ee3ff11f37166a;sessionid_ss=78034e564d3a73c506ee3ff11f37166a;sid_tt=78034e564d3a73c506ee3ff11f37166a;sid_ucp_v1=1.0.0-KDc1N2UzZDIzYWM1MTViY2YxN2Y4NDVlNmM1MjY3NTYzNTIxMTAxYzIKIAiuiPuK1p2CjWUQpp6cqwYYswsgDDDYkuioBjgBQOoHEAQaB3VzZWFzdDUiIDc4MDM0ZTU2NGQzYTczYzUwNmVlM2ZmMTFmMzcxNjZh;store-country-code=us;tt-target-idc=useast5;tt_chain_token=6lI25awe8YMJR/5WfdRb0g==;tt_csrf_token=7qq6kCPG-joZNz748aSlXRo7hx4xjH8Z6Tpg;uid_tt_ss=be4722bd49666483abe02fd3fedb96e7a3471708ec0db18529883efbc92bc11a"
-        c = [{"name": i.split("=")[0], "value": i.split("=")[1], "domain": ".tiktok.com", "path": "/"} for i in c.split(";") if i]
-        bot.login(session=c)
-        bot.call(number="+212691617955", country_code="BR")
-        # bot.solve_captcha(type="verify", subtype="3d", detail="LmIb9z1LPSFKjAffksnj8iWsfkgzPQob6pCZEmyTg26-UZCeSs8m1C0OKX02Ye*huzZqNd1WHWl9gLoot7MrsZ14gZ1vESL4aCQVPkbt*keuKGLA6af9r7p0L3Xw7OESuj2aN*aPTduHamJYIW6P1Qg9YOCgHJGJyi87NJb3eurzFUccIcRgw9pGLLEHCO-3fK5FOWiLsVDfKpsq0L8Lw32XAP3pwoZcW1IaDjw72VKx7MnZ10Bfu*FWMCwEn2MkAFz*OpHv-qqdOvpkVqagcOiYa2Nn6fdekiJ5jiq2EPebxMvXsOCXAzxeW*tL-Vuk48BMqBDxWitQulninzV*oCrMPVT6YaFTxJ9Y*8wkvg7ULkmgiLWXhKNujmrB3n50wy5vfqMhgC1MwNG0dNyxvff4OEvGtl1lgRilHcLIyCmq8VIfT11ARAexOK7TgypQt10zKikTM5-wH0cylZ-d8rPKlhzveiMScKGfOjZ69es7-69ISQ..")

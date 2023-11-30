@@ -10,6 +10,7 @@ python = "^3.11"
 playwright = "^1.40.0"
 fake-useragent = "^1.4.0"
 playwright-stealth = "^1.0.6"
+omocaptcha-py = {git = "https://github.com/MehdiRtal/OMOCaptcha.py.git"}
 
 
 [build-system]
