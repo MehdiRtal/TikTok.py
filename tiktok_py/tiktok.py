@@ -9,7 +9,7 @@ from omocaptcha_py import OMOCaptcha
 
 
 class TikTok:
-    def __init__(self, headless: bool = False, proxy: str = None):
+    def __init__(self, headless: bool = False, proxy: str = None, omocaptcha_api_key: str = None):
         self.playwright = sync_playwright().start()
         tmp_proxy = None
         if proxy:
@@ -38,6 +38,7 @@ class TikTok:
         self.screen_width = str(random.randint(800, 1920))
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
         self.verify_fp = None
+        self.omo_captcha_api_key = omocaptcha_api_key
 
     def _generate_params(self, params: dict):
         return "?" + "&".join([f"{k}={urllib.parse.quote(v)}" for k, v in params.items()])
@@ -269,8 +270,8 @@ class TikTok:
         challenge_code = str(data["challenge_code"])
         mode = data["mode"]
 
+        omocaptcha = OMOCaptcha(self.omo_captcha_api_key)
         if subtype == "3d":
-            omocaptcha = OMOCaptcha("vBGRE4v2HuzbHytf9NZ6fHkuZirmcxmJXP00HkK9HUUVaf6LQmRNdeXJ9u0Pt8PqG9o24kIQ4Ecopnix")
             image_url = data["question"]["url1"]
             x1, y1, x2, y2 = omocaptcha.solve_tiktok_2objects(image_url=image_url)
             answer = [
@@ -284,7 +285,6 @@ class TikTok:
                 }
             ]
         elif subtype == "whirl":
-            omocaptcha = OMOCaptcha("vBGRE4v2HuzbHytf9NZ6fHkuZirmcxmJXP00HkK9HUUVaf6LQmRNdeXJ9u0Pt8PqG9o24kIQ4Ecopnix")
             outer_image_url = data["question"]["url1"]
             inner_image_url = data["question"]["url2"]
             x = omocaptcha.solve_tiktok_rotation(outer_image_url=outer_image_url, inner_image_url=inner_image_url)
