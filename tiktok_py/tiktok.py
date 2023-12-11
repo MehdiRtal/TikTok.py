@@ -64,8 +64,6 @@ class TikTok:
                 }});
             }}
         """
-        # print(expression)
-        # exit()
         r = self.page.evaluate(expression)
         return r
 
@@ -73,17 +71,17 @@ class TikTok:
         if params:
             url += self._generate_params(params)
         headers = json.dumps(headers)
-        r = self.page.evaluate(f"""
-                () => {{
-                    return new Promise((resolve, reject) => {{
-                        fetch('{url}', {{ method: '{method}', headers: {headers} }})
-                            .then(response => response.text())
-                            .then(data => resolve(data))
-                            .catch(error => reject(error.message));
-                    }});
-                }}
-            """
-        )
+        expression = f"""
+            () => {{
+                return new Promise((resolve, reject) => {{
+                    fetch('{url}', {{ method: '{method}', headers: {headers} }})
+                        .then(response => response.text())
+                        .then(data => resolve(data))
+                        .catch(error => reject(error.message));
+                }});
+            }}
+        """
+        r = self.page.evaluate(expression)
         return r
 
     def login(self, username: str = None, password: str = None, session: dict = None):
@@ -145,12 +143,13 @@ class TikTok:
             r_json = json.loads(r)
             if "verify_center_decision_conf" in r_json["data"]:
                 captcha = json.loads(r_json["data"]["verify_center_decision_conf"])
-                self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"])
+                self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
                 r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
             if r_json["message"] != "success":
                 raise Exception("Login failed")
             self.session = ";".join([f"{cookies['name']}={cookies['value']}" for cookies in self.context.cookies()])
+            self.session += f";s_v_web_id={self.verify_fp}"
 
     def get_user_info(self, username: str):
         params = {
@@ -321,15 +320,25 @@ class TikTok:
         r_json = json.loads(r)
         if "codeDecisionConf" in r_json:
             captcha = json.loads(r_json["codeDecisionConf"])
-            self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"])
+            self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
             r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
         if r_json["status_msg"] != "Success":
             raise Exception("Call failed")
 
-    def solve_captcha(self, detail: str, type: str, subtype: str):
-        #url = "https://verification-va.byteoversea.com"
-        url = "https://www-useast1a.tiktok.com"
+    def solve_captcha(self, detail: str, type: str, subtype: str, region: str):
+        if region == "ie":
+            url = "https://rc-verification.tiktokv.eu"
+        elif region == "in":
+            url = "https://rc-verification-i18n.tiktokv.com"
+        elif region == "sg":
+            url = "https://rc-verification-sg.tiktokv.com"
+        elif region == "ttp":
+            url = "https://rc-verification16-normal-useast5.tiktokv.us"
+        elif region == "ttp2":
+            url = "https://rc-verification16-normal-useast8.tiktokv.us"
+        elif region == "va":
+            url = "https://rc-verification-va.tiktokv.com"
 
         params = {
             "lang": self.language,
@@ -343,20 +352,23 @@ class TikTok:
             "aid": "1988",
             "os_type": "2",
             "mode": "",
-            "tmp": "1701289845878",
+            "tmp": "1702250765984",
             "platform": self.platform,
             "webdriver": "false",
             "fp": self.verify_fp,
             "type": type,
             "detail": detail,
-            "server_sdk_env": "%7B%22idc%22:%22useast5%22,%22region%22:%22US-TTP%22,%22server_type%22:%22business%22%7D",
+            "server_sdk_env": "%7B%22idc%22:%22sg1%22,%22region%22:%22ALISG%22,%22server_type%22:%22business%22%7D",
             "subtype": subtype,
             "challenge_code": "3058",
             "os_name": "windows",
             "h5_check_version": "3.5.0-alpha.1"
         }
         r = self._xhr("GET", f"{url}/captcha/get", params=params)
-        data = json.loads(r)["data"]
+        r_json = json.loads(r)
+        if r_json["msg_sub_code"] != "success":
+            raise Exception("Captcha failed")
+        data = r_json["data"]
         id = data["id"]
         challenge_code = str(data["challenge_code"])
         mode = data["mode"]
@@ -395,12 +407,13 @@ class TikTok:
         params["mode"] = mode
         params["challenge_code"] = challenge_code
         r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
-        print(r)
+        r_json = json.loads(r)
+        if r_json["msg_sub_code"] != "success":
+            raise Exception("Captcha failed")
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
-        # input("Press Enter to continue...")
         self.browser.close()
         self.playwright.stop()
