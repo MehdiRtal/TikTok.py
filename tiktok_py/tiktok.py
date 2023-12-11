@@ -1,12 +1,11 @@
 from playwright.sync_api import sync_playwright
-import urllib.parse
 import json
 from fake_useragent import UserAgent
 import random
 from playwright_stealth import stealth_sync
 from omocaptcha_py import OMOCaptcha
 
-from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id
+from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id, generate_params
 
 
 class TikTok:
@@ -44,12 +43,11 @@ class TikTok:
         self.omo_captcha_api_key = omocaptcha_api_key
         self.session = None
 
-    def _generate_params(self, params: dict):
-        return "?" + "&".join([f"{k}={urllib.parse.quote(v)}" for k, v in params.items()])
+
 
     def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = ""):
         if params:
-            url += self._generate_params(params)
+            url += generate_params(params)
         if headers:
             headers = "\n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
         expression = f"""
@@ -69,7 +67,7 @@ class TikTok:
 
     def _fetch(self, method: str, url: str, params: dict = None, headers: dict = {}) -> str:
         if params:
-            url += self._generate_params(params)
+            url += generate_params(params)
         headers = json.dumps(headers)
         expression = f"""
             () => {{
@@ -91,9 +89,7 @@ class TikTok:
         if session:
             self.session = session
             self.context.add_cookies([{"name": i.split("=")[0], "value": i.split("=")[1], "domain": ".tiktok.com", "path": "/"} for i in self.session.split(";")])
-            for cookies in self.context.cookies():
-                if cookies["name"] == "s_v_web_id":
-                    self.verify_fp = cookies["value"]
+            self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), None)
         elif username and password:
             username = encrypt_login(username)
             password = encrypt_login(password)
