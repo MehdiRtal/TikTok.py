@@ -2,14 +2,15 @@ from playwright.sync_api import sync_playwright
 import json
 from fake_useragent import UserAgent
 import random
-from playwright_stealth import stealth_sync
 from omocaptcha_py import OMOCaptcha
 
+from playwright_stealth import stealth_sync, StealthConfig
 from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id, generate_params
 
 
 class TikTok:
-    def __init__(self, headless: bool = False, proxy: str = None, omocaptcha_api_key: str = None):
+    def __init__(self, headless: bool = False, proxy: str = None, omocaptcha_api_key: str = None, user_agent: str = None):
+        self.omocaptcha_api_key = omocaptcha_api_key
         self.playwright = sync_playwright().start()
         tmp_proxy = None
         if proxy:
@@ -20,77 +21,138 @@ class TikTok:
                 tmp_proxy["server"] = f"http://{proxy.split('@')[1]}"
                 tmp_proxy["username"] = proxy.split("@")[0].split(":")[0]
                 tmp_proxy["password"] = proxy.split("@")[0].split(":")[1]
-        self.browser = self.playwright.chromium.launch(
-            devtools=True,
+        self.browser = self.playwright.firefox.launch(
             headless=headless,
-            proxy=tmp_proxy
+            proxy=tmp_proxy,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-notifications",
+            ]
         )
-        ua = UserAgent()
-        self.user_agent = ua.chrome
+        if user_agent:
+            self.user_agent = user_agent
+        else:
+            ua = UserAgent()
+            self.user_agent = ua.chrome
+        self.user_agent = None
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.page = self.context.new_page()
-        stealth_sync(self.page)
-        self.language = self.page.evaluate("() => navigator.language").split("-")[0]
+        stealth_sync(
+            self.page,
+            StealthConfig(
+                webdriver=True,
+                webgl_vendor=True,
+                chrome_app=False,
+                chrome_csi=False,
+                chrome_load_times=False,
+                chrome_runtime=False,
+                iframe_content_window=True,
+                media_codecs=True,
+                navigator_hardware_concurrency=4,
+                navigator_languages=False,
+                navigator_permissions=True,
+                navigator_platform=False,
+                navigator_plugins=True,
+                navigator_user_agent=False,
+                navigator_vendor=False,
+                outerdimensions=True,
+                hairline=False,
+            ),
+        )
+        self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
-        # self.device_id = str(random.randint(10**18, 10**19 - 1))
-        self.device_id = None
         self.history_len = str(random.randint(1, 10))
         self.screen_height = str(random.randint(600, 1080))
+        self.screen_height = "1080"
         self.screen_width = str(random.randint(800, 1920))
+        self.screen_width = "1920"
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
-        self.verify_fp = generate_verify()
-        self.omo_captcha_api_key = omocaptcha_api_key
+        self.verify_fp = ""
+        self.device_id = ""
         self.session = None
 
-
-
-    def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = ""):
+    def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None):
         if params:
             url += generate_params(params)
         if headers:
             headers = "\n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
         expression = f"""
-            () => {{
+            (o) => {{
                 return new Promise((resolve, reject) => {{
                     let xhr = new XMLHttpRequest();
-                    xhr.open('{method}', '{url}');
+                    xhr.open(o.method, o.url);
                     {headers}
                     xhr.onload = () => resolve(xhr.responseText);
                     xhr.onerror = () => reject(xhr.statusText);
-                    xhr.send('{data}');
+                    xhr.send(o.data);
                 }});
             }}
         """
-        r = self.page.evaluate(expression)
+        r = self.page.evaluate(expression, {"url": url, "method": method, "data": data})
         return r
 
-    def _fetch(self, method: str, url: str, params: dict = None, headers: dict = {}) -> str:
+    def _fetch(self, method: str, url: str, params: dict = None, headers: dict = {}, data: str = None) -> str:
         if params:
+            params.update({
+                "WebIdLastTime": "",
+                "aid": "1988",
+                "app_language": self.language,
+                "app_name": "tiktok_web",
+                "browser_language": self.language,
+                "browser_name": "Mozilla",
+                "browser_online": "true",
+                "browser_platform": self.platform,
+                "browser_version": self.browser_version,
+                "channel": "tiktok_web",
+                "cookie_enabled": "true",
+                "device_id": self.device_id,
+                "device_platform": "web_pc",
+                "focus_state": "true",
+                "history_len": self.history_len,
+                "is_fullscreen": "false",
+                "is_page_visible": "true",
+                "language": self.language,
+                "os": self.platform,
+                "priority_region": "",
+                "referer": "",
+                "region": "MA",
+                "screen_height": self.screen_height,
+                "screen_width": self.screen_width,
+                "tz_name": self.timezone,
+                "verifyFp": self.verify_fp,
+                "webcast_language": self.language
+            })
             url += generate_params(params)
-        headers = json.dumps(headers)
-        expression = f"""
-            () => {{
-                return new Promise((resolve, reject) => {{
-                    fetch('{url}', {{ method: '{method}', headers: {headers} }})
+        expression = """
+            (o) => {
+                return new Promise((resolve, reject) => {
+                    fetch(o.url, { method: o.method, headers: o.headers, body: o.data })
                         .then(response => response.text())
                         .then(data => resolve(data))
                         .catch(error => reject(error.message));
-                }});
-            }}
+                });
+            }
         """
-        r = self.page.evaluate(expression)
+        r = self.page.evaluate(expression, {"url": url, "method": method, "headers": headers, "data": data})
         return r
 
     def login(self, username: str = None, password: str = None, session: dict = None):
-        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
-        data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
-        self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
         if session:
             self.session = session
-            self.context.add_cookies([{"name": i.split("=")[0], "value": i.split("=")[1], "domain": ".tiktok.com", "path": "/"} for i in self.session.split(";")])
-            self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), None)
+            # self.context.add_cookies([{"name": i.split("=")[0], "value": i.split("=")[1], "domain": ".tiktok.com", "path": "/"} for i in self.session.split(";")])
+            self.context.add_cookies(self.session)
+            self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
+            self.page.goto("https://www.tiktok.com/")
+            self.page.wait_for_timeout(5000)
         elif username and password:
+            self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
+            data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
+            self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
+            self.verify_fp = generate_verify()
             username = encrypt_login(username)
             password = encrypt_login(password)
             headers = {
@@ -142,6 +204,7 @@ class TikTok:
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
                 r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
+            print(r_json)
             if r_json["message"] != "success":
                 raise Exception("Login failed")
             self.session = ";".join([f"{cookies['name']}={cookies['value']}" for cookies in self.context.cookies()])
@@ -149,109 +212,58 @@ class TikTok:
 
     def get_user_info(self, username: str):
         params = {
-            "WebIdLastTime": "",
-            "aid": "1988",
-            "app_language": self.language,
-            "app_name": "tiktok_web",
-            "browser_language": self.language,
-            "browser_name": "Mozilla",
-            "browser_online": "true",
-            "browser_platform": self.platform,
-            "browser_version": self.browser_version,
-            "channel": "tiktok_web",
-            "cookie_enabled": "true",
-            "device_id": self.device_id,
-            "device_platform": "web_pc",
-            "focus_state": "true",
             "from_page": "user",
-            "history_len": self.history_len,
-            "is_fullscreen": "false",
-            "is_page_visible": "true",
-            "language": self.language,
-            "os": self.platform,
-            "priority_region": "",
-            "referer": "",
-            "region": "MA",
-            "screen_height": self.screen_height,
-            "screen_width": self.screen_width,
             "secUid": "",
-            "tz_name": self.timezone,
-            "uniqueId": username,
-            "verifyFp": self.verify_fp,
-            "webcast_language": self.language
+            "uniqueId": username
         }
         r = self._fetch("GET", "https://www.tiktok.com/api/user/detail/", params=params)
         return json.loads(r)["userInfo"]
 
+    def edit_profile(self, nickname: str = "", bio: str = "", avatar: str = ""):
+        body = []
+        if bio:
+            body.append(f"signature={bio}")
+        if nickname:
+            body.append(f"nickname={nickname}")
+        if avatar:
+            body = ""
+            params = {
+                "from_page": "user"
+            }
+            self.page.evaluate("    ")
+            r = self._fetch("POST", "https://www.tiktok.com/api/upload/image/", params=params, data=body)
+            r_json = json.loads(r)
+            if r_json["status_code"] != 0:
+                raise Exception("Upload avatar failed")
+            avatar_uri = r_json["data"]["uri"]
+            body.append(f"avatar_uri={avatar_uri}")
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = "&".join(body)
+        params = {
+            "from_page": "user"
+        }
+        r = self._fetch("POST", "https://www.tiktok.com/api/update/profile/", params=params, headers=headers, data=body)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Edit profile failed")
+
     def comment(self, url: str, text: str):
         params = {
-            "WebIdLastTime": "",
-            "action_type": "1",
-            "aid": "1988",
-            "app_language": self.language,
-            "app_name": "tiktok_web",
             "aweme_id": extract_aweme_id(url),
-            "browser_language": self.language,
-            "browser_name": "Mozilla",
-            "browser_online": "true",
-            "browser_platform": self.platform,
-            "browser_version": self.browser_version,
-            "channel": "tiktok_web",
-            "cookie_enabled": "true",
-            "device_id": self.device_id,
-            "device_platform": "web_pc",
-            "focus_state": "true",
             "from_page": "video",
-            "history_len": self.history_len,
-            "is_fullscreen": "false",
-            "is_page_visible": "true",
-            "os": self.platform,
-            "priority_region": "",
-            "referer": "",
-            "region": "MA",
-            "screen_height": self.screen_height,
-            "screen_width": self.screen_width,
             "text": text,
-            "text_extra": "[]",
-            "tz_name": self.timezone,
-            "verifyFp": self.verify_fp,
-            "webcast_language": self.language
+            "text_extra": "[]"
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish/", params=params)
         print(r)
 
     def like(self, url: str):
         params = {
-            "WebIdLastTime": "",
-            "action_type": "1",
-            "aid": "1988",
-            "app_language": self.language,
-            "app_name": "tiktok_web",
             "aweme_id": extract_aweme_id(url),
-            "browser_language": self.language,
-            "browser_name": "Mozilla",
-            "browser_online": "true",
-            "browser_platform": self.platform,
-            "browser_version": self.browser_version,
-            "channel": "tiktok_web",
-            "cookie_enabled": "true",
-            "device_id": self.device_id,
-            "device_platform": "web_pc",
-            "focus_state": "true",
             "from_page": "video",
-            "history_len": self.history_len,
-            "is_fullscreen": "false",
-            "is_page_visible": "true",
-            "os": self.platform,
-            "priority_region": "",
-            "referer": "",
-            "region": "MA",
-            "screen_height": self.screen_height,
-            "screen_width": self.screen_width,
-            "type": "1",
-            "tz_name": self.timezone,
-            "verifyFp": self.verify_fp,
-            "webcast_language": self.language
+            "type": "1"
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params)
         print(r)
@@ -259,43 +271,26 @@ class TikTok:
     def follow(self, username: str):
         user = self.get_user_info(username)["user"]
         params = {
-            "WebIdLastTime": "",
             "action_type": "1",
-            "aid": "1988",
-            "app_language": self.language,
-            "app_name": "tiktok_web",
-            "browser_language": self.language,
-            "browser_name": "Mozilla",
-            "browser_online": "true",
-            "browser_platform": self.platform,
-            "browser_version": self.browser_version,
-            "channel": "tiktok_web",
-            "channel_id": "0",
-            "cookie_enabled": "true",
-            "device_id": self.device_id,
-            "device_platform": "web_pc",
-            "focus_state": "true",
             "from": "18",
             "fromWeb": "1",
             "from_page": "user",
             "from_pre": "0",
-            "history_len": self.history_len,
-            "is_fullscreen": "false",
-            "is_page_visible": "true",
-            "os": self.platform,
-            "priority_region": "",
-            "referer": "",
-            "region": "MA",
-            "screen_height": self.screen_height,
-            "screen_width": self.screen_width,
-            "secUid": user["secUid"],
+            "sec_user_id": user["secUid"],
             "type": "1",
-            "tz_name": self.timezone,
-            "user_id": user["id"],
-            "verifyFp": self.verify_fp,
-            "webcast_language": self.language
+            "user_id": user["id"]
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params)
+        print(r)
+
+    def save(self, url: str):
+        params = {
+            "action": "1",
+            "from_page": "video",
+            "itemId": extract_aweme_id(url),
+            "secUid": ""
+        }
+        r = self._fetch("POST", "https://www.tiktok.com/api/item/collect/", params=params)
         print(r)
 
     def call(self, number: str, country_code: str):
@@ -369,7 +364,7 @@ class TikTok:
         challenge_code = str(data["challenge_code"])
         mode = data["mode"]
 
-        omocaptcha = OMOCaptcha(self.omo_captcha_api_key)
+        omocaptcha = OMOCaptcha(self.omocaptcha_api_key)
         if subtype == "3d":
             image_url = data["question"]["url1"]
             x1, y1, x2, y2 = omocaptcha.solve_tiktok_2objects(image_url=image_url)
