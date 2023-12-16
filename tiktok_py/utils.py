@@ -1,6 +1,6 @@
 import random
 import time
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse
 
 
 def encrypt_login(s: str):
@@ -47,6 +47,3 @@ def generate_verify():
 def extract_aweme_id(url: str):
     path = urlparse(url).path
     return path.split("/")[-1]
-
-def generate_params(params: dict):
-    return "?" + "&".join([f"{k}={quote(v)}" for k, v in params.items()])
