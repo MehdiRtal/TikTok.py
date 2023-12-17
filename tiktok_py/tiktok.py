@@ -4,8 +4,9 @@ from fake_useragent import UserAgent
 import random
 from omocaptcha_py import OMOCaptcha
 from requests.models import PreparedRequest
-
 from playwright_stealth import stealth_sync, StealthConfig
+import os
+
 from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id
 
 
@@ -63,6 +64,8 @@ class TikTok:
                 hairline=False,
             ),
         )
+        self.signature_page = self.context.new_page()
+        self.signature_page.goto("file://" + os.path.join(os.path.dirname(__file__), "website", "tiktok.html"))
         self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
@@ -131,6 +134,22 @@ class TikTok:
             req = PreparedRequest()
             req.prepare_url(url, params)
             url = req.url
+            expression = """
+                (o) => {
+                    var init_token = window.byted_acrawler.init({
+                                        aid: 1988,
+                                        dfp: !1,
+                                        boe: !1,
+                                        intercept: !0,
+                                        enablePathList: ["/api/user/detail", "/api/user/list/", "/api/music/detail", "/api/item/detail", "/api/challenge/detail/", "/share/item/list", "/api/item_list/", "/api/comment/list/", "/api/comment/list/reply/", "/api/discover/*", "/api/commit/follow/user/", "/api/recommend/user/", "/api/impression/write/", "/share/item/explore/list", "/api/commit/item/digg/", "/node/share/*", "/discover/render/*"]
+                                    });
+                    var token = window.byted_acrawler.sign(o);
+                    return token;
+                }
+            """
+            signature = self.signature_page.evaluate(expression, {"url": url})
+            print(signature)
+            url += f"&_signature={signature}"
         expression = """
             (o) => {
                 return new Promise((resolve, reject) => {
@@ -146,13 +165,12 @@ class TikTok:
 
     def login(self, username: str = None, password: str = None, session: dict = None):
         if session:
+            self.page.goto("https://www.tiktok.com/login/phone-or-email/email/", wait_until="networkidle")
             self.session = json.loads(session)
             self.context.add_cookies(self.session)
             self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
-            self.page.goto("https://www.tiktok.com/")
-            self.page.wait_for_timeout(5000)
         elif username and password:
-            self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
+            self.page.goto("https://www.tiktok.com/login/phone-or-email/email/", wait_until="networkidle")
             data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
             self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
             self.verify_fp = generate_verify()
@@ -200,12 +218,12 @@ class TikTok:
                 }, separators=(",", ":")),
                 "fp": self.verify_fp
             }
-            r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login", params=params, headers=headers, data=body)
+            r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
             if "verify_center_decision_conf" in r_json["data"]:
                 captcha = json.loads(r_json["data"]["verify_center_decision_conf"])
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-                r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login", params=params, headers=headers, data=body)
+                r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
             print(r_json)
             if r_json["message"] != "success":
@@ -219,7 +237,7 @@ class TikTok:
             "secUid": "",
             "uniqueId": username
         }
-        r = self._fetch("GET", "https://www.tiktok.com/api/user/detail", params=params)
+        r = self._fetch("GET", "https://www.tiktok.com/api/user/detail/", params=params)
         return json.loads(r)["userInfo"]
 
     def edit_profile(self, nickname: str = "", bio: str = "", avatar: str = ""):
@@ -234,7 +252,7 @@ class TikTok:
                 "from_page": "user"
             }
             self.page.evaluate("    ")
-            r = self._fetch("POST", "https://www.tiktok.com/api/upload/image", params=params, data=body)
+            r = self._fetch("POST", "https://www.tiktok.com/api/upload/image/", params=params, data=body)
             r_json = json.loads(r)
             if r_json["status_code"] != 0:
                 raise Exception("Upload avatar failed")
@@ -247,7 +265,7 @@ class TikTok:
         params = {
             "from_page": "user"
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/update/profile", params=params, headers=headers, data=body)
+        r = self._fetch("POST", "https://www.tiktok.com/api/update/profile/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if r_json["status_code"] != 0:
             raise Exception("Edit profile failed")
@@ -259,7 +277,7 @@ class TikTok:
             "text": text,
             "text_extra": "[]"
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish/", params=params)
         print(r)
 
     def like(self, url: str):
@@ -268,7 +286,7 @@ class TikTok:
             "from_page": "fyp",
             "type": "1"
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params)
         print(r)
 
     def follow(self, username: str):
@@ -283,7 +301,7 @@ class TikTok:
             "type": "1",
             "user_id": user["id"]
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params)
         print(r)
 
     def save(self, url: str):
@@ -293,7 +311,7 @@ class TikTok:
             "itemId": extract_aweme_id(url),
             "secUid": ""
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/item/collect", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/item/collect/", params=params)
         print(r)
 
     def call(self, number: str, country_code: str):
@@ -310,12 +328,12 @@ class TikTok:
                 "lang": self.language,
                 "language": self.language
             }
-        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send", params=params, headers=headers, data=body)
+        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if "codeDecisionConf" in r_json:
             captcha = json.loads(r_json["codeDecisionConf"])
             self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send", params=params, headers=headers, data=body)
+            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
         if r_json["status_msg"] != "Success":
             raise Exception("Call failed")
@@ -358,7 +376,7 @@ class TikTok:
             "os_name": "windows",
             "h5_check_version": "3.5.0-alpha.1"
         }
-        r = self._xhr("GET", f"{url}/captcha/get", params=params)
+        r = self._xhr("GET", f"{url}/captcha/get/", params=params)
         r_json = json.loads(r)
         if r_json["msg_sub_code"] != "success":
             raise Exception("Captcha failed")
@@ -400,7 +418,7 @@ class TikTok:
         })
         params["mode"] = mode
         params["challenge_code"] = challenge_code
-        r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
+        r = self._xhr("POST", f"{url}/captcha/verify/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if r_json["msg_sub_code"] != "success":
             raise Exception("Captcha failed")
