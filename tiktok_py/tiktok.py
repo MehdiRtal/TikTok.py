@@ -33,6 +33,7 @@ class TikTok:
                 "--disable-notifications",
             ]
         )
+        self.user_agent = None
         if user_agent:
             self.user_agent = user_agent
         # else:
@@ -77,9 +78,10 @@ class TikTok:
         self.session = None
 
     def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None):
-        req = PreparedRequest()
-        req.prepare_url(url, params)
-        url = req.url
+        if params:
+            req = PreparedRequest()
+            req.prepare_url(url, params)
+            url = req.url
         if headers:
             headers = "\n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
         expression = f"""
@@ -381,7 +383,7 @@ class TikTok:
             "os_name": "windows",
             "h5_check_version": "3.5.0-alpha.1"
         }
-        r = self._xhr("GET", f"{url}/captcha/get/", params=params)
+        r = self._xhr("GET", f"{url}/captcha/get", params=params)
         r_json = json.loads(r)
         if r_json["msg_sub_code"] != "success":
             raise Exception("Captcha failed")
@@ -423,7 +425,7 @@ class TikTok:
         })
         params["mode"] = mode
         params["challenge_code"] = challenge_code
-        r = self._xhr("POST", f"{url}/captcha/verify/", params=params, headers=headers, data=body)
+        r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if r_json["msg_sub_code"] != "success":
             raise Exception("Captcha failed")
