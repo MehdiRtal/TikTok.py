@@ -5,7 +5,6 @@ import random
 from omocaptcha_py import OMOCaptcha
 from requests.models import PreparedRequest
 from playwright_stealth import stealth_sync, StealthConfig
-import os
 
 from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id
 
@@ -36,11 +35,11 @@ class TikTok:
         )
         if user_agent:
             self.user_agent = user_agent
-        else:
-            ua = UserAgent()
-            self.user_agent = ua.chrome
-        self.user_agent = None
+        # else:
+        #     ua = UserAgent()
+        #     self.user_agent = ua.firefox
         self.context = self.browser.new_context(user_agent=self.user_agent)
+        self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "manifest", "other"] else route.continue_())
         self.page = self.context.new_page()
         stealth_sync(
             self.page,
@@ -62,10 +61,8 @@ class TikTok:
                 navigator_vendor=False,
                 outerdimensions=True,
                 hairline=False,
-            ),
+            )
         )
-        self.signature_page = self.context.new_page()
-        self.signature_page.goto("file://" + os.path.join(os.path.dirname(__file__), "website", "tiktok.html"))
         self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
@@ -134,45 +131,38 @@ class TikTok:
             req = PreparedRequest()
             req.prepare_url(url, params)
             url = req.url
-            expression = """
-                (o) => {
-                    var init_token = window.byted_acrawler.init({
-                                        aid: 1988,
-                                        dfp: !1,
-                                        boe: !1,
-                                        intercept: !0,
-                                        enablePathList: ["/api/user/detail", "/api/user/list/", "/api/music/detail", "/api/item/detail", "/api/challenge/detail/", "/share/item/list", "/api/item_list/", "/api/comment/list/", "/api/comment/list/reply/", "/api/discover/*", "/api/commit/follow/user/", "/api/recommend/user/", "/api/impression/write/", "/share/item/explore/list", "/api/commit/item/digg/", "/node/share/*", "/discover/render/*"]
-                                    });
-                    var token = window.byted_acrawler.sign(o);
-                    return token;
-                }
-            """
-            signature = self.signature_page.evaluate(expression, {"url": url})
-            print(signature)
-            url += f"&_signature={signature}"
         expression = """
-            (o) => {
-                return new Promise((resolve, reject) => {
-                    fetch(o.url, { method: o.method, headers: o.headers, body: o.data })
-                        .then(response => response.text())
-                        .then(data => resolve(data))
-                        .catch(error => reject(error.message));
-                });
+            async (o) => {
+                if (typeof o.data === 'object' && o.data !== null && 'avatar' in o.data) {
+                    formData = new FormData();
+                    const byteString = atob(o.data.avatar);
+                    const byteArray = new Uint8Array(byteString.length);
+                    for (let i = 0; i < byteString.length; i++) {
+                        byteArray[i] = byteString.charCodeAt(i);
+                    }
+                    blob = new Blob([byteArray], { type: 'image/jpeg' });
+                    formData.append('file', blob);
+                    formData.append('source', 0)
+                    requestBody = formData;
+                } else {
+                    requestBody = o.data;
+                }
+                response = await fetch(o.url, { method: o.method, headers: o.headers, body: requestBody });
+                return response.text();
             }
         """
         r = self.page.evaluate(expression, {"url": url, "method": method, "headers": headers, "data": data})
         return r
 
     def login(self, username: str = None, password: str = None, session: dict = None):
+        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
+        data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
+        self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
         if session:
-            self.page.goto("https://www.tiktok.com/login/phone-or-email/email/", wait_until="networkidle")
             self.session = json.loads(session)
             self.context.add_cookies(self.session)
             self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
         elif username and password:
-            self.page.goto("https://www.tiktok.com/login/phone-or-email/email/", wait_until="networkidle")
-            data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
-            self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
             self.verify_fp = generate_verify()
             username = encrypt_login(username)
             password = encrypt_login(password)
@@ -225,7 +215,6 @@ class TikTok:
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
                 r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
-            print(r_json)
             if r_json["message"] != "success":
                 raise Exception("Login failed")
             self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
@@ -233,26 +222,25 @@ class TikTok:
 
     def get_user_info(self, username: str):
         params = {
-            "from_page": "user",
+            "from_page": "fyp",
             "secUid": "",
             "uniqueId": username
         }
         r = self._fetch("GET", "https://www.tiktok.com/api/user/detail/", params=params)
         return json.loads(r)["userInfo"]
 
-    def edit_profile(self, nickname: str = "", bio: str = "", avatar: str = ""):
+    def edit_profile(self, nickname: str = None, bio: str = None, avatar: str = None):
         body = []
         if bio:
             body.append(f"signature={bio}")
         if nickname:
             body.append(f"nickname={nickname}")
         if avatar:
-            body = ""
+            _body = {"avatar": avatar}
             params = {
                 "from_page": "user"
             }
-            self.page.evaluate("    ")
-            r = self._fetch("POST", "https://www.tiktok.com/api/upload/image/", params=params, data=body)
+            r = self._fetch("POST", "https://www.tiktok.com/api/upload/image/", params=params, data=_body)
             r_json = json.loads(r)
             if r_json["status_code"] != 0:
                 raise Exception("Upload avatar failed")
@@ -269,28 +257,41 @@ class TikTok:
         r_json = json.loads(r)
         if r_json["status_code"] != 0:
             raise Exception("Edit profile failed")
+        print(r_json)
 
     def comment(self, url: str, text: str):
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = ""
         params = {
             "aweme_id": extract_aweme_id(url),
             "from_page": "video",
             "text": text,
             "text_extra": "[]"
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish/", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish/", params=params, headers=headers, data=body)
         print(r)
 
     def like(self, url: str):
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = ""
         params = {
             "aweme_id": extract_aweme_id(url),
             "from_page": "fyp",
             "type": "1"
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params, headers=headers, data=body)
         print(r)
 
     def follow(self, username: str):
         user = self.get_user_info(username)["user"]
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = ""
         params = {
             "action_type": "1",
             "from": "18",
@@ -301,17 +302,21 @@ class TikTok:
             "type": "1",
             "user_id": user["id"]
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params, headers=headers, data=body)
         print(r)
 
     def save(self, url: str):
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded"
+        }
+        body = ""
         params = {
             "action": "1",
             "from_page": "fyp",
             "itemId": extract_aweme_id(url),
             "secUid": ""
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/item/collect/", params=params)
+        r = self._fetch("POST", "https://www.tiktok.com/api/item/collect/", params=params, headers=headers, data=body)
         print(r)
 
     def call(self, number: str, country_code: str):
