@@ -391,6 +391,7 @@ class TikTok:
         mode = data["mode"]
 
         omocaptcha = OMOCaptcha(self.omocaptcha_api_key)
+        body = {}
         if subtype == "3d":
             image_url = data["question"]["url1"]
             x1, y1, x2, y2 = omocaptcha.solve_tiktok_2objects(image_url=image_url)
@@ -409,18 +410,19 @@ class TikTok:
             inner_image_url = data["question"]["url2"]
             x = omocaptcha.solve_tiktok_rotation(outer_image_url=outer_image_url, inner_image_url=inner_image_url)
             answer = [{"x": i, "y": 0, "relative_time": i + 50} for i in range(x+1)]
+            body["drag_width"] = 271
 
         headers = {
             "Content-Type": "application/json"
         }
-        body = json.dumps({
+        body = body.update({
             "modified_img_width": 340,
             "id": id,
             "mode": mode,
             "reply": answer,
             "reply2": answer,
-            "drag_width": 271
         })
+        body = json.dumps(body)
         params["mode"] = mode
         params["challenge_code"] = challenge_code
         r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
