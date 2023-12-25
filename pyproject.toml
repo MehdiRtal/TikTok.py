@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "tiktok-py"
+name = "TikTok.py"
 version = "0.0.3"
 description = ""
 authors = ["MehdiRtal <mehdirtal7@pm.me>"]

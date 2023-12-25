@@ -22,23 +22,13 @@ class TikTok:
                 tmp_proxy["server"] = f"http://{proxy.split('@')[1]}"
                 tmp_proxy["username"] = proxy.split("@")[0].split(":")[0]
                 tmp_proxy["password"] = proxy.split("@")[0].split(":")[1]
-        self.browser = self.playwright.firefox.launch(
-            headless=headless,
-            proxy=tmp_proxy,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-web-security",
-                "--disable-notifications",
-            ]
-        )
-        self.user_agent = None
+        self.browser = self.playwright.firefox.launch(headless=headless, proxy=tmp_proxy)
         if user_agent:
             self.user_agent = user_agent
-        # else:
-        #     ua = UserAgent()
-        #     self.user_agent = ua.firefox
+        else:
+            ua = UserAgent(browsers=["firefox"], os=["windows"])
+            self.user_agent = ua.random
+            # self.user_agent = None
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "manifest", "other"] else route.continue_())
         self.page = self.context.new_page()
@@ -69,9 +59,7 @@ class TikTok:
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
         self.history_len = str(random.randint(1, 10))
         self.screen_height = str(random.randint(600, 1080))
-        self.screen_height = "1080"
         self.screen_width = str(random.randint(800, 1920))
-        self.screen_width = "1920"
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
         self.verify_fp = ""
         self.device_id = ""
@@ -286,7 +274,9 @@ class TikTok:
             "type": "1"
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params, headers=headers, data=body)
-        print(r)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0 or r_json["is_digg"] == 1:
+            raise Exception("Like failed")
 
     def follow(self, username: str):
         user = self.get_user_info(username)["user"]
@@ -305,7 +295,9 @@ class TikTok:
             "user_id": user["id"]
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params, headers=headers, data=body)
-        print(r)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Follow failed")
 
     def save(self, url: str):
         headers = {
@@ -319,7 +311,9 @@ class TikTok:
             "secUid": ""
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/item/collect/", params=params, headers=headers, data=body)
-        print(r)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Save failed")
 
     def call(self, number: str, country_code: str):
         headers = {
@@ -385,8 +379,8 @@ class TikTok:
         }
         r = self._xhr("GET", f"{url}/captcha/get", params=params)
         r_json = json.loads(r)
-        if r_json["msg_sub_code"] != "success":
-            raise Exception("Captcha failed")
+        if r_json["code"] != 200:
+            raise Exception("Get captcha failed")
         data = r_json["data"]
         id = data["id"]
         challenge_code = str(data["challenge_code"])
@@ -427,8 +421,8 @@ class TikTok:
         params["challenge_code"] = challenge_code
         r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
         r_json = json.loads(r)
-        if r_json["msg_sub_code"] != "success":
-            raise Exception("Captcha failed")
+        if r_json["code"] != 200:
+            raise Exception("Solve captcha failed")
 
     def __enter__(self):
         return self
