@@ -154,6 +154,7 @@ class TikTok:
             self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
         elif username and password:
             self.verify_fp = generate_verify()
+            self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
             username = encrypt_login(username)
             password = encrypt_login(password)
             headers = {
@@ -207,7 +208,6 @@ class TikTok:
                 r_json = json.loads(r)
             if r_json["message"] != "success":
                 raise Exception("Login failed")
-            self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
             self.session = json.dumps(self.context.cookies())
 
     def get_user_info(self, username: str):
@@ -217,7 +217,10 @@ class TikTok:
             "uniqueId": username
         }
         r = self._fetch("GET", "https://www.tiktok.com/api/user/detail/", params=params)
-        return json.loads(r)["userInfo"]
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Get user info failed")
+        return r_json
 
     def edit_profile(self, nickname: str = None, bio: str = None, avatar: str = None):
         body = []
@@ -247,7 +250,6 @@ class TikTok:
         r_json = json.loads(r)
         if r_json["status_code"] != 0:
             raise Exception("Edit profile failed")
-        print(r_json)
 
     def comment(self, url: str, text: str):
         headers = {
@@ -261,7 +263,9 @@ class TikTok:
             "text_extra": "[]"
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/comment/publish/", params=params, headers=headers, data=body)
-        print(r)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Comment failed")
 
     def like(self, url: str):
         headers = {
