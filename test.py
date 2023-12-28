@@ -15,7 +15,7 @@ if __name__ == "__main__":
             try:
                 bot.login(session=session)
 
-                bot.like("https://www.tiktok.com/@yasnime21/photo/7314030475981638918")
+                bot.save("https://www.tiktok.com/@yasnime21/photo/7316969550531153158")
 
                 # bot.follow("yasnime21")
 

@@ -63,6 +63,7 @@ class TikTok:
         self.timezone = self.page.evaluate("() => Intl.DateTimeFormat().resolvedOptions().timeZone")
         self.verify_fp = ""
         self.device_id = ""
+        self.csrf_token = ""
         self.session = None
 
     def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None):
@@ -209,6 +210,7 @@ class TikTok:
             if r_json["message"] != "success":
                 raise Exception("Login failed")
             self.session = json.dumps(self.context.cookies())
+        self.csrf_token = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "tt_csrf_token"), "")
 
     def get_user_info(self, username: str):
         params = {
@@ -253,7 +255,8 @@ class TikTok:
 
     def comment(self, url: str, text: str):
         headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Tt-Csrf-Token": self.csrf_token
         }
         body = ""
         params = {
@@ -269,7 +272,8 @@ class TikTok:
 
     def like(self, url: str):
         headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Tt-Csrf-Token": self.csrf_token
         }
         body = ""
         params = {
@@ -285,7 +289,8 @@ class TikTok:
     def follow(self, username: str):
         user = self.get_user_info(username)["user"]
         headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Tt-Csrf-Token": self.csrf_token
         }
         body = ""
         params = {
@@ -305,7 +310,8 @@ class TikTok:
 
     def save(self, url: str):
         headers = {
-            "Content-Type": "application/x-www-form-urlencoded"
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Tt-Csrf-Token": self.csrf_token
         }
         body = ""
         params = {
