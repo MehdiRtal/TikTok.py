@@ -421,7 +421,7 @@ class TikTok:
         headers = {
             "Content-Type": "application/json"
         }
-        body = body.update({
+        body.update({
             "modified_img_width": 340,
             "id": id,
             "mode": mode,
