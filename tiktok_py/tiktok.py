@@ -346,7 +346,7 @@ class TikTok:
             self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
             r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
-        if r_json["status_msg"] != "Success":
+        if r_json["status_code"] != 0:
             raise Exception("Call failed")
 
     def solve_captcha(self, detail: str, type: str, subtype: str, region: str):
