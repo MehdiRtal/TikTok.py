@@ -325,12 +325,12 @@ class TikTok:
         if r_json["status_code"] != 0:
             raise Exception("Save failed")
 
-    def call(self, number: str, country_code: str):
+    def contact(self, number: str, country_code: str, sms: bool = False):
         headers = {
             "Content-Type": "application/json"
         }
         body = json.dumps({
-            "codeChannel": 1,
+            "codeChannel": 2 if sms else 1,
             "target": number,
             "country": country_code,
             "isCipher": False
