@@ -416,7 +416,7 @@ class TikTok:
         }
         r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/company/list/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
-        if r_json["status_code"] != 0:
+        if r_json["statusCode"] != 0:
             raise Exception("Basic info failed")
 
         headers = {
