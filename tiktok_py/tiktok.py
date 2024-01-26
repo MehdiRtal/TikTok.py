@@ -72,7 +72,7 @@ class TikTok:
             req.prepare_url(url, params)
             url = req.url
         if headers:
-            headers = "\n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
+            headers = "n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
         expression = f"""
             (o) => {{
                 return new Promise((resolve, reject) => {{
@@ -326,6 +326,139 @@ class TikTok:
             raise Exception("Save failed")
 
     def contact(self, number: str, country_code: str, sms: bool = False):
+        headers = {
+            "Content-Type": "application/json"
+        }
+        body = json.dumps({
+            "userData": json.dumps({
+                "session_id": "f24220cdf06b0818d42b784a1",
+                "isDraft": True,
+                "formData": {
+                    "companyBasicInfo": {
+                        "addressDetail": "",
+                        "area": "",
+                        "businessVerificationId": "",
+                        "city": "",
+                        "companyName": "",
+                        "country": "",
+                        "dnbCode": "",
+                        "number": "",
+                        "phone": "",
+                        "postalCode": "",
+                        "state": "",
+                        "website": ""
+                    },
+                    "dnbData": None,
+                    "dnbId": "",
+                    "qualificationUrls": [],
+                    "source": None
+                },
+                "policyConfirmed": True,
+                "currentStep": "basicInformation"
+            })
+        })
+        params = {
+                "lang": self.language,
+                "language": self.language
+        }
+        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/draft/update/", params=params, headers=headers, data=body)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Verify business failed")
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+        body = json.dumps({
+            "companyBasicInfo": {
+                "addressDetail": "SDSDFSDGDFG",
+                "businessVerificationId": "5456453453486",
+                "city": "Arapiraca",
+                "companyName": "FSDF",
+                "country": "BR",
+                "dnbCode": "",
+                "phone": "+244SDGDFGHFGHSDF",
+                "postalCode": "FGSFSDF",
+                "state": "Alagoas",
+                "website": ""
+            },
+            "userData": json.dumps({
+                "session_id": "f24220cdf06b0818d42b784a1",
+                "isDraft": True,
+                "formData": {
+                    "companyBasicInfo": {
+                        "addressDetail": "SDSDFSDGDFG",
+                        "area": "+244",
+                        "businessVerificationId": "5456453453486",
+                        "city": "Arapiraca",
+                        "companyName": "FSDF",
+                        "country": "BR",
+                        "dnbCode": "",
+                        "number": "SDGDFGHFGHSDF",
+                        "phone": "+244SDGDFGHFGHSDF",
+                        "postalCode": "FGSFSDF",
+                        "state": "Alagoas",
+                        "website": ""
+                    },
+                    "dnbData": None,
+                    "dnbId": "",
+                    "qualificationUrls": [],
+                    "source": None
+                },
+                "policyConfirmed": True,
+                "currentStep": "basicInformation",
+                "hasDraft": True
+            })
+        })
+        params = {
+                "lang": self.language,
+                "language": self.language
+        }
+        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/company/list/", params=params, headers=headers, data=body)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Basic info failed")
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+        body = json.dumps({
+            "userData": json.dumps({
+                "session_id": "f24220cdf06b0818d42b784a1",
+                "isDraft": True,
+                "formData": {
+                    "companyBasicInfo": {
+                        "addressDetail": "SDSDFSDGDFG",
+                        "area": "+244",
+                        "businessVerificationId": "5456453453486",
+                        "city": "Arapiraca",
+                        "companyName": "FSDF",
+                        "country": "BR",
+                        "dnbCode": "",
+                        "number": "SDGDFGHFGHSDF",
+                        "phone": "+244SDGDFGHFGHSDF",
+                        "postalCode": "FGSFSDF",
+                        "state": "Alagoas",
+                        "website": ""
+                    },
+                    "dnbData": None,
+                    "dnbId": "",
+                    "qualificationUrls": ["/wsos_v2/certification_center/object/wsos65b2cf13488f4b08?timeStamp=1706221634&sign=58fb40b4d7219be9de60a15388438709a056301947f5489094edfa82e7cbb179"],
+                    "source": 1
+                },
+                "policyConfirmed": True,
+                "currentStep": "verifyAccess"
+            })
+        })
+        params = {
+                "lang": self.language,
+                "language": self.language
+        }
+        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/draft/update/", params=params, headers=headers, data=body)
+        r_json = json.loads(r)
+        if r_json["status_code"] != 0:
+            raise Exception("Verify business failed")
+
         headers = {
             "Content-Type": "application/json"
         }
