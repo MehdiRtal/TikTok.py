@@ -10,7 +10,7 @@ from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id
 
 
 class TikTok:
-    def __init__(self, headless: bool = False, proxy: str = None, omocaptcha_api_key: str = None, user_agent: str = None):
+    def __init__(self, headless: bool = True, proxy: str = None, omocaptcha_api_key: str = None, user_agent: str = None):
         self.omocaptcha_api_key = omocaptcha_api_key
         self.playwright = sync_playwright().start()
         tmp_proxy = None
