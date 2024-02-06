@@ -222,7 +222,7 @@ class TikTok:
         r_json = json.loads(r)
         if r_json["status_code"] != 0:
             raise Exception("Get user info failed")
-        return r_json
+        return r_json["userInfo"]
 
     def edit_profile(self, nickname: str = None, bio: str = None, avatar: str = None):
         body = []
