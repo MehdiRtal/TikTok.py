@@ -303,9 +303,14 @@ class TikTok:
             "type": "1",
             "user_id": user["id"]
         }
-        r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params, headers=headers, data=body)
-        r_json = json.loads(r)
-        if r_json["status_code"] != 0:
+        for i in range(2):
+            r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params, headers=headers, data=body)
+            if not r:
+                continue
+            r_json = json.loads(r)
+            if not r_json["status_code"] != 0:
+                break
+        else:
             raise Exception("Follow failed")
 
     def save(self, url: str):
