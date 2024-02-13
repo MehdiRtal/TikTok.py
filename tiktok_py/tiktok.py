@@ -6,7 +6,7 @@ from omocaptcha_py import OMOCaptcha
 from requests.models import PreparedRequest
 from playwright_stealth import stealth_sync, StealthConfig
 
-from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id
+from tiktok_py.utils import encrypt_login, generate_verify, extract_aweme_id, generate_hashed_id
 
 
 class TikTok:
@@ -28,7 +28,6 @@ class TikTok:
         else:
             ua = UserAgent(browsers=["firefox"], os=["windows"])
             self.user_agent = ua.random
-            # self.user_agent = None
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "manifest", "other"] else route.continue_())
         self.page = self.context.new_page()
@@ -154,6 +153,15 @@ class TikTok:
             self.context.add_cookies(self.session)
             self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
         elif username and password:
+            hashed_id = generate_hashed_id(username)
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            body = f"hashed_id={hashed_id}&type=3&aid=1459"
+            r = self._fetch("POST", "https://www.tiktok.com/passport/web/region/", headers=headers, data=body)
+            r_json = json.loads(r)
+            domain = r_json["data"]["domain"]
+
             self.verify_fp = generate_verify()
             self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
             username = encrypt_login(username)
@@ -200,14 +208,15 @@ class TikTok:
                 }, separators=(",", ":")),
                 "fp": self.verify_fp
             }
-            r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
+            r = self._xhr("POST", f"https://{domain}/passport/web/user/login/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
             if "verify_center_decision_conf" in r_json["data"]:
                 captcha = json.loads(r_json["data"]["verify_center_decision_conf"])
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-                r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
+                r = self._xhr("POST", f"https://{domain}/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
             if r_json["message"] != "success":
+                print(r_json)
                 raise Exception("Login failed")
             self.session = json.dumps(self.context.cookies())
         self.csrf_token = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "tt_csrf_token"), "")
@@ -490,6 +499,9 @@ class TikTok:
             raise Exception("Call failed")
 
     def solve_captcha(self, detail: str, type: str, subtype: str, region: str):
+        if not self.omocaptcha_api_key:
+            raise Exception("OMOCaptcha API key not set")
+
         if region == "ie":
             url = "https://rc-verification.tiktokv.eu"
         elif region == "in":

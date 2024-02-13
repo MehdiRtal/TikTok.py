@@ -1,5 +1,6 @@
 import random
 import time
+import hashlib
 from urllib.parse import urlparse
 
 
@@ -47,3 +48,7 @@ def generate_verify():
 def extract_aweme_id(url: str):
     path = urlparse(url).path
     return path.split("/")[-1]
+
+def generate_hashed_id(username: str):
+    hashed_id = hashlib.sha256((username + "aDy0TUhtql92P7hScCs97YWMT-jub2q9").encode()).hexdigest()
+    return hashed_id
