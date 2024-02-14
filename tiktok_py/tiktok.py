@@ -1,6 +1,6 @@
 from playwright.sync_api import sync_playwright
 import json
-from fake_useragent import UserAgent
+from fake_useragent import FakeUserAgent
 import random
 from omocaptcha_py import OMOCaptcha
 from requests.models import PreparedRequest
@@ -22,11 +22,21 @@ class TikTok:
                 tmp_proxy["server"] = f"http://{proxy.split('@')[1]}"
                 tmp_proxy["username"] = proxy.split("@")[0].split(":")[0]
                 tmp_proxy["password"] = proxy.split("@")[0].split(":")[1]
-        self.browser = self.playwright.firefox.launch(headless=headless, proxy=tmp_proxy)
+        self.browser = self.playwright.firefox.launch(
+            headless=headless,
+            proxy=tmp_proxy,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-web-security",
+                "--disable-notifications",
+            ]
+        )
         if user_agent:
             self.user_agent = user_agent
         else:
-            ua = UserAgent(browsers=["firefox"], os=["windows"])
+            ua = FakeUserAgent(browsers=["firefox"], os=["windows"])
             self.user_agent = ua.random
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "manifest", "other"] else route.continue_())
@@ -51,7 +61,7 @@ class TikTok:
                 navigator_vendor=False,
                 outerdimensions=True,
                 hairline=False,
-            )
+            ),
         )
         self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
@@ -71,7 +81,7 @@ class TikTok:
             req.prepare_url(url, params)
             url = req.url
         if headers:
-            headers = "n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
+            headers = "\n".join([f"xhr.setRequestHeader('{k}', '{v}');" for k, v in headers.items()])
         expression = f"""
             (o) => {{
                 return new Promise((resolve, reject) => {{
@@ -160,14 +170,15 @@ class TikTok:
             body = f"hashed_id={hashed_id}&type=3&aid=1459"
             r = self._fetch("POST", "https://www.tiktok.com/passport/web/region/", headers=headers, data=body)
             r_json = json.loads(r)
-            domain = r_json["data"]["domain"]
+            ttwid = r_json["data"]["ttwid_migration_ticket"]
 
             self.verify_fp = generate_verify()
             self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
             username = encrypt_login(username)
             password = encrypt_login(password)
             headers = {
-                "Content-Type": "application/x-www-form-urlencoded"
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-Tt-Passport-Ttwid-Ticket": ttwid
             }
             body = f"mix_mode=1&username={username}&email={username}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
             params = {
@@ -175,7 +186,7 @@ class TikTok:
                 "did": self.device_id,
                 "aid": "1459",
                 "account_sdk_source": "web",
-                "sdk_version": "2.0.3-tiktok",
+                "sdk_version": "2.1.1-tiktok",
                 "language": self.language,
                 "verifyFp": self.verify_fp,
                 "target_aid": "",
@@ -208,15 +219,14 @@ class TikTok:
                 }, separators=(",", ":")),
                 "fp": self.verify_fp
             }
-            r = self._xhr("POST", f"https://{domain}/passport/web/user/login/", params=params, headers=headers, data=body)
+            r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
             r_json = json.loads(r)
             if "verify_center_decision_conf" in r_json["data"]:
                 captcha = json.loads(r_json["data"]["verify_center_decision_conf"])
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-                r = self._xhr("POST", f"https://{domain}/passport/web/user/login/", params=params, headers=headers, data=body)
+                r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
                 r_json = json.loads(r)
             if r_json["message"] != "success":
-                print(r_json)
                 raise Exception("Login failed")
             self.session = json.dumps(self.context.cookies())
         self.csrf_token = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "tt_csrf_token"), "")
@@ -292,6 +302,7 @@ class TikTok:
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
+        print(r_json)
         if r_json["status_code"] != 0 or r_json["is_digg"] == 1:
             raise Exception("Like failed")
 
@@ -312,7 +323,7 @@ class TikTok:
             "type": "1",
             "user_id": user["id"]
         }
-        for i in range(2):
+        for _ in range(2):
             r = self._fetch("POST", "https://www.tiktok.com/api/commit/follow/user/", params=params, headers=headers, data=body)
             if not r:
                 continue
@@ -506,6 +517,8 @@ class TikTok:
             url = "https://rc-verification.tiktokv.eu"
         elif region == "in":
             url = "https://rc-verification-i18n.tiktokv.com"
+        elif region == "mya":
+            url = "https://verification-mya.byteintl.com"
         elif region == "sg":
             url = "https://rc-verification-sg.tiktokv.com"
         elif region == "ttp":
@@ -518,13 +531,14 @@ class TikTok:
         params = {
             "lang": self.language,
             "app_name": "",
-            "h5_sdk_version": "2.26.18",
-            "sdk_version": "3.5.0-alpha.1",
+            "h5_sdk_version": "2.32.7",
+            "h5_sdk_use_type": "cdn",
+            "sdk_version": "3.8.20",
             "iid": "0",
             "did": "0",
             "device_id": "0",
             "ch": "web_text",
-            "aid": "1988",
+            "aid": "1459",
             "os_type": "2",
             "mode": "",
             "tmp": "1702250765984",
@@ -537,7 +551,7 @@ class TikTok:
             "subtype": subtype,
             "challenge_code": "3058",
             "os_name": "windows",
-            "h5_check_version": "3.5.0-alpha.1"
+            "h5_check_version": "3.8.20"
         }
         r = self._xhr("GET", f"{url}/captcha/get", params=params)
         r_json = json.loads(r)
