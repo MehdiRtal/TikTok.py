@@ -157,7 +157,7 @@ class TikTok:
         return r
 
     def login(self, username: str = None, password: str = None, session: str = None):
-        self.page.goto("https://www.tiktok.com/login/phone-or-email/email")
+        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
         data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
         self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
         if session:
