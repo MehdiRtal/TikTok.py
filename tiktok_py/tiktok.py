@@ -169,7 +169,7 @@ class TikTok:
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded"
             }
-            body = f"hashed_id={hashed_id}&type=3&aid=1459"
+            body = f"hashed_id={hashed_id}&type=2&aid=1459"
             r = self._fetch("POST", "https://www.tiktok.com/passport/web/region/", headers=headers, data=body)
             r_json = json.loads(r)
             self.domain = r_json["data"]["domain"]
