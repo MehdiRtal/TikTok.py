@@ -63,7 +63,7 @@ class TikTok:
                 hairline=False,
             ),
         )
-        self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
+        self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage").split("-")[0]
         self.platform = self.page.evaluate("() => navigator.platform")
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
         self.history_len = str(random.randint(1, 10))
@@ -74,8 +74,9 @@ class TikTok:
         self.device_id = ""
         self.csrf_token = ""
         self.session = None
+        self.domain = None
 
-    def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None):
+    def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None, credentials: bool = False):
         if params:
             req = PreparedRequest()
             req.prepare_url(url, params)
@@ -90,6 +91,7 @@ class TikTok:
                     {headers}
                     xhr.onload = () => resolve(xhr.responseText);
                     xhr.onerror = () => reject(xhr.statusText);
+                    {"xhr.withCredentials = true;" if credentials else ""}
                     xhr.send(o.data);
                 }});
             }}
@@ -170,7 +172,7 @@ class TikTok:
             body = f"hashed_id={hashed_id}&type=3&aid=1459"
             r = self._fetch("POST", "https://www.tiktok.com/passport/web/region/", headers=headers, data=body)
             r_json = json.loads(r)
-            ttwid = r_json["data"]["ttwid_migration_ticket"]
+            self.domain = r_json["data"]["domain"]
 
             self.verify_fp = generate_verify()
             self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
@@ -178,7 +180,6 @@ class TikTok:
             password = encrypt_login(password)
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
-                # "X-Tt-Passport-Ttwid-Ticket": ttwid
             }
             body = f"mix_mode=1&username={username}&email={username}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
             params = {
@@ -216,15 +217,15 @@ class TikTok:
                     "focus_state": True,
                     "is_fullscreen": False,
                     "history_len": self.history_len
-                }, separators=(",", ":")),
-                "fp": self.verify_fp
+                }, separators=(",", ":"))
             }
-            r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
+            r = self._xhr("POST", f"https://{self.domain}/passport/web/user/login/", params=params, headers=headers, data=body, credentials=True)
             r_json = json.loads(r)
             if "verify_center_decision_conf" in r_json["data"]:
                 captcha = json.loads(r_json["data"]["verify_center_decision_conf"])
                 self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-                r = self._xhr("POST", "https://www.tiktok.com/passport/web/user/login/", params=params, headers=headers, data=body)
+                params.update({"fp": self.verify_fp})
+                r = self._xhr("POST", f"https://{self.domain}/passport/web/user/login/", params=params, headers=headers, data=body, credentials=True)
                 r_json = json.loads(r)
             if r_json["message"] != "success":
                 print(r_json)
@@ -514,20 +515,20 @@ class TikTok:
         if not self.omocaptcha_api_key:
             raise Exception("OMOCaptcha API key not set")
 
-        if region == "ie":
-            url = "https://rc-verification.tiktokv.eu"
-        elif region == "in":
-            url = "https://rc-verification-i18n.tiktokv.com"
-        elif region == "mya":
-            url = "https://verification-mya.byteintl.com"
-        elif region == "sg":
-            url = "https://rc-verification-sg.tiktokv.com"
-        elif region == "ttp":
-            url = "https://rc-verification16-normal-useast5.tiktokv.us"
-        elif region == "ttp2":
-            url = "https://rc-verification16-normal-useast8.tiktokv.us"
-        elif region == "va":
-            url = "https://rc-verification-va.tiktokv.com"
+        # if region == "ie":
+        #     url = "https://rc-verification.tiktokv.eu"
+        # elif region == "in":
+        #     url = "https://rc-verification-i18n.tiktokv.com"
+        # elif region == "mya":
+        #     url = "https://verification-mya.byteintl.com"
+        # elif region == "sg":
+        #     url = "https://rc-verification-sg.tiktokv.com"
+        # elif region == "ttp":
+        #     url = "https://rc-verification16-normal-useast5.tiktokv.us"
+        # elif region == "ttp2":
+        #     url = "https://rc-verification16-normal-useast8.tiktokv.us"
+        # elif region == "va":
+        #     url = "https://rc-verification-va.tiktokv.com"
 
         params = {
             "lang": self.language,
@@ -554,7 +555,7 @@ class TikTok:
             "os_name": "windows",
             "h5_check_version": "3.8.20"
         }
-        r = self._xhr("GET", f"{url}/captcha/get", params=params)
+        r = self._xhr("GET", f"https://{self.domain}/captcha/get", params=params)
         r_json = json.loads(r)
         if r_json["code"] != 200:
             raise Exception("Get captcha failed")
@@ -598,7 +599,7 @@ class TikTok:
         body = json.dumps(body)
         params["mode"] = mode
         params["challenge_code"] = challenge_code
-        r = self._xhr("POST", f"{url}/captcha/verify", params=params, headers=headers, data=body)
+        r = self._xhr("POST", f"https://{self.domain}/captcha/verify", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if r_json["code"] != 200:
             raise Exception("Solve captcha failed")
