@@ -156,7 +156,7 @@ class TikTok:
         r = self.page.evaluate(expression, {"url": url, "method": method, "headers": headers, "data": data})
         return r
 
-    def login(self, username: str = None, password: str = None, session: str = None):
+    def login(self, email: str = None, username: str = None, password: str = None, session: str = None):
         self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
         data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
         self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
@@ -164,24 +164,30 @@ class TikTok:
             self.session = json.loads(session)
             self.context.add_cookies(self.session)
             self.verify_fp = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "s_v_web_id"), "")
-        elif username and password:
-            hashed_id = generate_hashed_id(username)
+        elif username or email and password:
+            if email:
+                hashed_id = generate_hashed_id(email)
+            elif username:
+                hashed_id = generate_hashed_id(username)
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded"
             }
-            body = f"hashed_id={hashed_id}&type=2&aid=1459"
+            body = f"hashed_id={hashed_id}&type={'3' if email else '2'}&aid=1459"
             r = self._fetch("POST", "https://www.tiktok.com/passport/web/region/", headers=headers, data=body)
             r_json = json.loads(r)
             self.domain = r_json["data"]["domain"]
 
             self.verify_fp = generate_verify()
             self.context.add_cookies([{"name": "s_v_web_id", "value": self.verify_fp, "domain": ".tiktok.com", "path": "/"}])
-            username = encrypt_login(username)
+            if email:
+                email = encrypt_login(email)
+            elif username:
+                username = encrypt_login(username)
             password = encrypt_login(password)
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            body = f"mix_mode=1&username={username}&email={username}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
+            body = f"mix_mode=1&username={email if email else username}{'&email=' + email if email else ''}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
             params = {
                 "multi_login": "1",
                 "did": self.device_id,
@@ -228,7 +234,6 @@ class TikTok:
                 r = self._xhr("POST", f"https://{self.domain}/passport/web/user/login/", params=params, headers=headers, data=body, credentials=True)
                 r_json = json.loads(r)
             if r_json["message"] != "success":
-                print(r_json)
                 raise Exception("Login failed")
             self.session = json.dumps(self.context.cookies())
         self.csrf_token = next((cookies["value"] for cookies in self.context.cookies() if cookies["name"] == "tt_csrf_token"), "")
