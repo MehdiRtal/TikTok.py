@@ -506,12 +506,12 @@ class TikTok:
                 "lang": self.language,
                 "language": self.language
             }
-        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
+        r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body, credentials=True)
         r_json = json.loads(r)
         if "codeDecisionConf" in r_json:
             captcha = json.loads(r_json["codeDecisionConf"])
             self.solve_captcha(detail=captcha["detail"], type=captcha["type"], subtype=captcha["subtype"], region=captcha["region"])
-            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body)
+            r = self._xhr("POST", "https://www.tiktok.com/api/ba/business/suite/verification/contact/send/", params=params, headers=headers, data=body, credentials=True)
             r_json = json.loads(r)
         if r_json["status_code"] != 0:
             raise Exception("Call failed")
@@ -524,19 +524,19 @@ class TikTok:
             domain = self.domain
         else:
             if region == "ie":
-                domain = "https://rc-verification.tiktokv.eu"
+                domain = "rc-verification.tiktokv.eu"
             elif region == "in":
-                domain = "https://rc-verification-i18n.tiktokv.com"
+                domain = "rc-verification-i18n.tiktokv.com"
             elif region == "mya":
-                domain = "https://verification-mya.byteintl.com"
+                domain = "verification-mya.byteintl.com"
             elif region == "sg":
-                domain = "https://rc-verification-sg.tiktokv.com"
+                domain = "rc-verification-sg.tiktokv.com"
             elif region == "ttp":
-                domain = "https://rc-verification16-normal-useast5.tiktokv.us"
+                domain = "rc-verification16-normal-useast5.tiktokv.us"
             elif region == "ttp2":
-                domain = "https://rc-verification16-normal-useast8.tiktokv.us"
+                domain = "rc-verification16-normal-useast8.tiktokv.us"
             elif region == "va":
-                domain = "https://rc-verification-va.tiktokv.com"
+                domain = "rc-verification-va.tiktokv.com"
 
         params = {
             "lang": self.language,
