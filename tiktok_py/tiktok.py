@@ -520,20 +520,23 @@ class TikTok:
         if not self.omocaptcha_api_key:
             raise Exception("OMOCaptcha API key not set")
 
-        # if region == "ie":
-        #     url = "https://rc-verification.tiktokv.eu"
-        # elif region == "in":
-        #     url = "https://rc-verification-i18n.tiktokv.com"
-        # elif region == "mya":
-        #     url = "https://verification-mya.byteintl.com"
-        # elif region == "sg":
-        #     url = "https://rc-verification-sg.tiktokv.com"
-        # elif region == "ttp":
-        #     url = "https://rc-verification16-normal-useast5.tiktokv.us"
-        # elif region == "ttp2":
-        #     url = "https://rc-verification16-normal-useast8.tiktokv.us"
-        # elif region == "va":
-        #     url = "https://rc-verification-va.tiktokv.com"
+        if self.domain:
+            domain = self.domain
+        else:
+            if region == "ie":
+                domain = "https://rc-verification.tiktokv.eu"
+            elif region == "in":
+                domain = "https://rc-verification-i18n.tiktokv.com"
+            elif region == "mya":
+                domain = "https://verification-mya.byteintl.com"
+            elif region == "sg":
+                domain = "https://rc-verification-sg.tiktokv.com"
+            elif region == "ttp":
+                domain = "https://rc-verification16-normal-useast5.tiktokv.us"
+            elif region == "ttp2":
+                domain = "https://rc-verification16-normal-useast8.tiktokv.us"
+            elif region == "va":
+                domain = "https://rc-verification-va.tiktokv.com"
 
         params = {
             "lang": self.language,
@@ -560,7 +563,7 @@ class TikTok:
             "os_name": "windows",
             "h5_check_version": "3.8.20"
         }
-        r = self._xhr("GET", f"https://{self.domain}/captcha/get", params=params)
+        r = self._xhr("GET", f"https://{domain}/captcha/get", params=params)
         r_json = json.loads(r)
         if r_json["code"] != 200:
             raise Exception("Get captcha failed")
@@ -604,7 +607,7 @@ class TikTok:
         body = json.dumps(body)
         params["mode"] = mode
         params["challenge_code"] = challenge_code
-        r = self._xhr("POST", f"https://{self.domain}/captcha/verify", params=params, headers=headers, data=body)
+        r = self._xhr("POST", f"https://{domain}/captcha/verify", params=params, headers=headers, data=body)
         r_json = json.loads(r)
         if r_json["code"] != 200:
             raise Exception("Solve captcha failed")
