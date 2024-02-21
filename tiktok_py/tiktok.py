@@ -39,7 +39,7 @@ class TikTok:
             ua = FakeUserAgent(browsers=["firefox"], os=["windows"])
             self.user_agent = ua.random
         self.context = self.browser.new_context(user_agent=self.user_agent)
-        self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "font", "manifest", "other"] else route.continue_())
+        self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "image", "font", "manifest", "other"] else route.continue_())
         self.page = self.context.new_page()
         stealth_sync(
             self.page,
@@ -63,7 +63,7 @@ class TikTok:
                 hairline=False,
             ),
         )
-        self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage").split("-")[0]
+        self.language = self.page.evaluate("() => navigator.language || navigator.userLanguage")
         self.platform = self.page.evaluate("() => navigator.platform")
         self.browser_version = self.page.evaluate("() => navigator.appVersion")
         self.history_len = str(random.randint(1, 10))
@@ -119,7 +119,6 @@ class TikTok:
                 "history_len": self.history_len,
                 "is_fullscreen": "false",
                 "is_page_visible": "true",
-                "language": self.language,
                 "os": self.platform,
                 "priority_region": "",
                 "referer": "",
@@ -157,7 +156,7 @@ class TikTok:
         return r
 
     def login(self, email: str = None, username: str = None, password: str = None, session: str = None):
-        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle")
+        self.page.goto("https://www.tiktok.com/login/phone-or-email/email", wait_until="networkidle", timeout=60000)
         data = json.loads(self.page.locator("id=__UNIVERSAL_DATA_FOR_REHYDRATION__").inner_text())
         self.device_id = data["__DEFAULT_SCOPE__"]["webapp.app-context"]["wid"]
         if session:
@@ -309,7 +308,6 @@ class TikTok:
         }
         r = self._fetch("POST", "https://www.tiktok.com/api/commit/item/digg/", params=params, headers=headers, data=body)
         r_json = json.loads(r)
-        print(r_json)
         if r_json["status_code"] != 0 or r_json["is_digg"] == 1:
             raise Exception("Like failed")
 
@@ -322,6 +320,7 @@ class TikTok:
         body = ""
         params = {
             "action_type": "1",
+            "channel_id": "0",
             "from": "18",
             "fromWeb": "1",
             "from_page": "fyp",
@@ -335,6 +334,7 @@ class TikTok:
             if not r:
                 continue
             r_json = json.loads(r)
+            print(r_json)
             if not r_json["status_code"] != 0:
                 break
         else:
