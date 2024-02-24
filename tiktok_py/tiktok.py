@@ -75,6 +75,7 @@ class TikTok:
         self.csrf_token = ""
         self.session = None
         self.domain = None
+        self.verified = False
 
     def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None, credentials: bool = False):
         if params:
@@ -359,7 +360,7 @@ class TikTok:
 
     def contact(self, number: str, country_code: str, sms: bool = False):
         self.page.goto("https://www.tiktok.com/business-suite/business-registration", wait_until="networkidle")
-        if "verifyAccess" not in self.page.url:
+        if "verifyAccess" not in self.page.url and not self.verified:
             headers = {
                 "Content-Type": "application/json"
             }
@@ -492,6 +493,8 @@ class TikTok:
             r_json = json.loads(r)
             if r_json["status_code"] != 0:
                 raise Exception("Verify business failed")
+
+            self.verified = True
 
         headers = {
             "Content-Type": "application/json"
