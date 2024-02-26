@@ -75,7 +75,6 @@ class TikTok:
         self.csrf_token = ""
         self.session = None
         self.domain = None
-        self.verified = False
 
     def _xhr(self, method: str, url: str, params: dict = None, headers: dict = "", data: str = None, credentials: bool = False):
         if params:
