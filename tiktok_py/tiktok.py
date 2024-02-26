@@ -358,9 +358,9 @@ class TikTok:
         if r_json["status_code"] != 0:
             raise Exception("Save failed")
 
-    def contact(self, number: str, country_code: str, sms: bool = False):
+    def verify(self):
         self.page.goto("https://www.tiktok.com/business-suite/business-registration", wait_until="networkidle")
-        if "verifyAccess" not in self.page.url and not self.verified:
+        if "verifyAccess" not in self.page.url:
             headers = {
                 "Content-Type": "application/json"
             }
@@ -494,8 +494,7 @@ class TikTok:
             if r_json["status_code"] != 0:
                 raise Exception("Verify business failed")
 
-            self.verified = True
-
+    def contact(self, number: str, country_code: str, sms: bool = False):
         headers = {
             "Content-Type": "application/json"
         }
