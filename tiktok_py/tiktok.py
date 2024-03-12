@@ -36,8 +36,10 @@ class TikTok:
         if user_agent:
             self.user_agent = user_agent
         else:
-            ua = FakeUserAgent(browsers=["firefox"], os=["windows"])
+            ua = FakeUserAgent(browsers="firefox", os="windows")
             self.user_agent = ua.random
+            if self.user_agent.endswith(" "):
+                self.user_agent = self.user_agent[:-1]
         self.context = self.browser.new_context(user_agent=self.user_agent)
         self.context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["stylesheet", "image", "font", "manifest", "other"] else route.continue_())
         self.page = self.context.new_page()
@@ -186,7 +188,7 @@ class TikTok:
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded",
             }
-            body = f"mix_mode=1&username={email if email else username}{'&email=' + email if email else ''}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
+            body = f"mix_mode=1&username={email if email else username}{f'&email={email}' if email else ''}&password={password}&aid=1459&is_sso=false&account_sdk_source=web&region=MA&language={self.language}&did={self.device_id}&fixed_mix_mode=1"
             params = {
                 "multi_login": "1",
                 "did": self.device_id,
