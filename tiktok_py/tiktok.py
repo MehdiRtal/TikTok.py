@@ -496,6 +496,7 @@ class TikTok:
                 raise Exception("Verify business failed")
 
     def contact(self, number: str, country_code: str, sms: bool = False):
+        self.page.goto("https://www.tiktok.com/business-suite/business-registration", wait_until="networkidle")
         headers = {
             "Content-Type": "application/json"
         }
