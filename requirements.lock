@@ -17,30 +17,30 @@ certifi==2024.2.2
 charset-normalizer==3.3.2
     # via requests
 fake-useragent==1.5.1
-    # via twitter-py
+    # via tiktok-py
 greenlet==3.0.3
     # via playwright
 h11==0.14.0
     # via httpcore
 httpcore==1.0.5
     # via httpx
-httpx==0.25.2
+httpx==0.27.0
     # via omocaptcha-py
 idna==3.6
     # via anyio
     # via httpx
     # via requests
-omocaptcha-py @ git+https://github.com/MehdiRtal/OMOCaptcha.py.git@3a7676527172f9af87f5f6d44b17ac3b1908968d
-    # via twitter-py
+omocaptcha-py @ git+https://github.com/MehdiRtal/OMOCaptcha.py.git
+    # via tiktok-py
 playwright==1.42.0
     # via playwright-stealth
-    # via twitter-py
+    # via tiktok-py
 playwright-stealth==1.0.6
-    # via twitter-py
+    # via tiktok-py
 pyee==11.0.1
     # via playwright
 requests==2.31.0
-    # via twitter-py
+    # via tiktok-py
 sniffio==1.3.1
     # via anyio
     # via httpx
@@ -48,3 +48,5 @@ typing-extensions==4.10.0
     # via pyee
 urllib3==2.2.1
     # via requests
+setuptools==69.2.0
+    # via tiktok-py

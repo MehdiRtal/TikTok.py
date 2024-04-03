@@ -10,6 +10,7 @@ dependencies = [
     "playwright-stealth>=1.0.6",
     "requests>=2.31.0",
     "omocaptcha-py @ git+https://github.com/MehdiRtal/OMOCaptcha.py.git",
+    "setuptools>=69.2.0",
 ]
 requires-python = ">= 3.12"
 
