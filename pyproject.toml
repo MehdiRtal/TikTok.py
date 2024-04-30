@@ -12,7 +12,7 @@ dependencies = [
     "omocaptcha-py @ git+https://github.com/MehdiRtal/OMOCaptcha.py.git",
     "setuptools>=69.2.0",
 ]
-requires-python = ">= 3.12"
+requires-python = ">= 3.11"
 
 [build-system]
 requires = ["hatchling"]
